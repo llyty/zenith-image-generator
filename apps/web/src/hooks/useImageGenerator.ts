@@ -38,7 +38,9 @@ export function useImageGenerator() {
   const [uhd, setUhd] = useState(() => loadSettings().uhd ?? false);
   const [upscale8k] = useState(() => loadSettings().upscale8k ?? false);
   const [showInfo, setShowInfo] = useState(false);
-  const [isBlurred, setIsBlurred] = useState(false);
+  const [isBlurred, setIsBlurred] = useState(
+    () => localStorage.getItem("isBlurred") === "true"
+  );
   const [isUpscaled, setIsUpscaled] = useState(false);
   const [isUpscaling, setIsUpscaling] = useState(false);
   const initialized = useRef(false);
@@ -114,6 +116,10 @@ export function useImageGenerator() {
       localStorage.removeItem("lastImageUrl");
     }
   }, [imageUrl]);
+
+  useEffect(() => {
+    localStorage.setItem("isBlurred", String(isBlurred));
+  }, [isBlurred]);
 
   useEffect(() => {
     if (!loading) return;

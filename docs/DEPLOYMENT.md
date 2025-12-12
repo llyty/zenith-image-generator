@@ -104,6 +104,15 @@ vercel --prod
 在 Vercel Dashboard 设置：
 - `CORS_ORIGINS`: 允许的 CORS 源（可选）
 
+### ⚠️ 超时限制
+
+Vercel Edge Functions 免费版超时限制为 25 秒。在 Flow 模式下同时生成多张图片可能会触发 `504 Gateway Timeout` 错误。
+
+解决方案：
+- **升级 Pro 计划**：可将超时时间增加到 60 秒
+- **使用 Cloudflare Pages**：超时限制更宽松，推荐用于图片生成场景
+- **减少并发**：Flow 模式下减少同时生成的图片数量
+
 ---
 
 ## 三、Netlify

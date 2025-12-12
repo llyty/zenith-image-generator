@@ -63,7 +63,7 @@ function FlowCanvas() {
   const handleImageGenerated = useCallback(
     (nodeId: string, image: GeneratedImage) => {
       imagesRef.current = [...imagesRef.current, image]
-      // Update node data with the generated image URL
+      // Update node data with the generated image URL and duration
       setNodes((nds) =>
         nds.map((node) =>
           node.id === nodeId
@@ -72,7 +72,7 @@ function FlowCanvas() {
                 data: {
                   ...node.data,
                   imageUrl: image.url,
-                  duration: image.duration,
+                  duration: image.duration, // Now a string like "8.1s"
                 },
               }
             : node

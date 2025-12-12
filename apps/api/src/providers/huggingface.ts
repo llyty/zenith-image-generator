@@ -3,8 +3,7 @@
  */
 
 import { HF_SPACES } from '@z-image/shared'
-import type { GenerateSuccessResponse } from '@z-image/shared'
-import type { ImageProvider, ProviderGenerateRequest } from './types'
+import type { ImageProvider, ProviderGenerateRequest, ProviderGenerateResult } from './types'
 
 /** Extract complete event data from SSE stream */
 function extractCompleteEventData(sseStream: string): unknown {
@@ -117,7 +116,7 @@ export class HuggingFaceProvider implements ImageProvider {
   readonly id = 'huggingface'
   readonly name = 'HuggingFace'
 
-  async generate(request: ProviderGenerateRequest): Promise<GenerateSuccessResponse> {
+  async generate(request: ProviderGenerateRequest): Promise<ProviderGenerateResult> {
     const seed = request.seed ?? Math.floor(Math.random() * 2147483647)
     const modelId = request.model || 'z-image-turbo'
     const baseUrl = HF_SPACES[modelId as keyof typeof HF_SPACES] || HF_SPACES['z-image-turbo']

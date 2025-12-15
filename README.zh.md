@@ -133,6 +133,10 @@ AES-256-GCM          代理层
 | 后端 | Hono (TypeScript)                       |
 | 部署 | Cloudflare Pages + Functions            |
 
+## star 历史
+
+[![Star History Chart](https://api.star-history.com/svg?repos=WuMingDao/zenith-image-generator&type=date&legend=top-left)](https://www.star-history.com/#WuMingDao/zenith-image-generator&type=date&legend=top-left)
+
 ## 许可证
 
 MIT

@@ -21,12 +21,10 @@ import type {
 } from '@z-image/shared'
 import { LLM_PROVIDER_CONFIGS } from '@z-image/shared'
 import { PROVIDER_CONFIGS, type ProviderType } from './constants'
-import { getNextAvailableToken, isQuotaError, markTokenExhausted } from './tokenRotation'
+import type { TokenProvider } from './crypto'
+import { runWithTokenRotation } from './tokenRotation'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
-
-// Maximum retry attempts for token rotation
-const MAX_RETRY_ATTEMPTS = 10
 
 /** API error with code */
 export interface ApiErrorInfo {
@@ -187,64 +185,16 @@ export async function generateImage(
     }
   }
 
-  // No tokens but auth not required - try anonymous
-  if (allTokens.length === 0) {
-    try {
-      const data = await generateImageSingle(options, null)
-      return { success: true, data }
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Network error',
-      }
-    }
-  }
+  const result = await runWithTokenRotation(
+    provider as TokenProvider,
+    allTokens,
+    (t) => generateImageSingle(options, t),
+    { allowAnonymous: !providerConfig.requiresAuth }
+  )
 
-  // Token rotation loop
-  let attempts = 0
-  while (attempts < MAX_RETRY_ATTEMPTS) {
-    const nextToken = getNextAvailableToken(provider, allTokens)
-
-    // All tokens exhausted
-    if (!nextToken) {
-      // Try anonymous if provider allows it
-      if (!providerConfig.requiresAuth) {
-        try {
-          const data = await generateImageSingle(options, null)
-          return { success: true, data }
-        } catch (err) {
-          return {
-            success: false,
-            error: err instanceof Error ? err.message : 'Network error',
-          }
-        }
-      }
-      return {
-        success: false,
-        error: 'All API tokens exhausted. Quota will reset tomorrow.',
-      }
-    }
-
-    try {
-      const data = await generateImageSingle(options, nextToken)
-      return { success: true, data }
-    } catch (err) {
-      if (isQuotaError(err)) {
-        markTokenExhausted(provider, nextToken)
-        attempts++
-        continue
-      }
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Network error',
-      }
-    }
-  }
-
-  return {
-    success: false,
-    error: 'Maximum retry attempts reached',
-  }
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false, error: result.error }
 }
 
 /**
@@ -273,60 +223,18 @@ export async function upscaleImage(
   scale = 4,
   hfTokens?: string | string[]
 ): Promise<ApiResponse<UpscaleResponse>> {
-  // Build token list
   const allTokens = Array.isArray(hfTokens) ? hfTokens : hfTokens ? [hfTokens] : []
 
-  // No tokens - try anonymous (HuggingFace allows anonymous)
-  if (allTokens.length === 0) {
-    try {
-      const data = await upscaleImageSingle(url, scale, null)
-      return { success: true, data }
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Network error',
-      }
-    }
-  }
+  const result = await runWithTokenRotation(
+    'huggingface',
+    allTokens,
+    (t) => upscaleImageSingle(url, scale, t),
+    { allowAnonymous: true }
+  )
 
-  // Token rotation loop
-  let attempts = 0
-  while (attempts < MAX_RETRY_ATTEMPTS) {
-    const nextToken = getNextAvailableToken('huggingface', allTokens)
-
-    // All tokens exhausted - try anonymous
-    if (!nextToken) {
-      try {
-        const data = await upscaleImageSingle(url, scale, null)
-        return { success: true, data }
-      } catch (err) {
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : 'Network error',
-        }
-      }
-    }
-
-    try {
-      const data = await upscaleImageSingle(url, scale, nextToken)
-      return { success: true, data }
-    } catch (err) {
-      if (isQuotaError(err)) {
-        markTokenExhausted('huggingface', nextToken)
-        attempts++
-        continue
-      }
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Network error',
-      }
-    }
-  }
-
-  return {
-    success: false,
-    error: 'Maximum retry attempts reached',
-  }
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false, error: result.error }
 }
 
 /** Optimize prompt options */
@@ -395,7 +303,6 @@ export async function optimizePrompt(
   const providerConfig = LLM_PROVIDER_CONFIGS[provider]
   const tokenProvider = getLLMTokenProvider(provider)
 
-  // Build token list
   const allTokens = Array.isArray(tokenOrTokens)
     ? tokenOrTokens
     : tokenOrTokens
@@ -416,46 +323,23 @@ export async function optimizePrompt(
   }
 
   // No tokens and requires auth
-  if (allTokens.length === 0) {
+  if (allTokens.length === 0 || !tokenProvider) {
     return {
       success: false,
       error: `Please configure your ${provider} token first`,
     }
   }
 
-  // Token rotation loop
-  let attempts = 0
-  while (attempts < MAX_RETRY_ATTEMPTS) {
-    const nextToken = tokenProvider ? getNextAvailableToken(tokenProvider, allTokens) : allTokens[0]
+  const result = await runWithTokenRotation(
+    tokenProvider,
+    allTokens,
+    (t) => optimizePromptSingle(options, t),
+    { allowAnonymous: false }
+  )
 
-    // All tokens exhausted
-    if (!nextToken) {
-      return {
-        success: false,
-        error: 'All API tokens exhausted. Quota will reset tomorrow.',
-      }
-    }
-
-    try {
-      const data = await optimizePromptSingle(options, nextToken)
-      return { success: true, data }
-    } catch (err) {
-      if (isQuotaError(err) && tokenProvider) {
-        markTokenExhausted(tokenProvider, nextToken)
-        attempts++
-        continue
-      }
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Network error',
-      }
-    }
-  }
-
-  return {
-    success: false,
-    error: 'Maximum retry attempts reached',
-  }
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false, error: result.error }
 }
 
 /**

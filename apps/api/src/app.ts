@@ -485,6 +485,7 @@ export function createApp(config: AppConfig = {}) {
         model: body.model,
         prompt: body.prompt,
         negativePrompt: body.negativePrompt || body.negative_prompt,
+        loras: body.loras,
         width,
         height,
         steps,
